@@ -5,22 +5,24 @@ import time
 import schedule
 import telegram
 
-percent = 1  # default 1%
-rapid_percent = 2 # default 2%
-alert_once_percent = 1 # default 1%
-counter_min = [0] * 2 # 연속 카운트 방지 변수
+percent = 0.5  #default 1%
+rapid_percent = 1 #default 2%
+alert_once_percent = 0.5 # default 1%
+counter_min = [0] * 2 # 연속 카운트 방지
 latest_before_value = [0] * 2 # 코인 중 마지막으로 발생한 알람 시점의 퍼센트를 저장하는 변수
 # 0 : KOSPI
 # 1 : KOSDAQ
 stock = {'KOSPI': 0, 'KOSDAQ': 1}
 stock_no = ('KOSPI', 'KOSDAQ')
-alert_moment_default = [[60, 0, 0], [30, 0, 0], [15, 0, 0]] # 경과시간 (60, 30, 15), 당시금액 혹은 지수, 당시~현재 변동률
+alert_moment_default = [[60, 0, 0], [30, 0, 0], [15, 0, 0]] #경과시간 (60, 30, 15), 당시금액 혹은 지수, 당시~현재 변동률
 alert_moment = [alert_moment_default] * len(stock)
-telgm_default_list = [] 
 
-# 초기 시작시간 기록
+telgm_default_list = []  # 기본으로 알림 받을 사람의 chat id 기입
+
+#초기 시작시간 기록
 now = datetime.datetime.now()
 nowtime_start = int(now.strftime('%Y%m%d%H%M'))
+
 
 # 텔레그램의 chat id를 추가하는 telegram_chat_id_add 함수 선언
 def telegram_chat_id_add(updates, telgm_default_list, telgm_extra):
@@ -34,10 +36,15 @@ def telegram_chat_id_add(updates, telgm_default_list, telgm_extra):
     telgm_list = list(set(telgm_list))
     return telgm_list
 
-telgm_token = '1272415618:AAHJ2b-Fz701zzazQCwDPMS8IGCKWoSuECI'
+telgm_token = '' # 텔레그램 토큰 기입
 telgm_bot = telegram.Bot(token=telgm_token)
-telgm_updates = telgm_bot.get_updates()
+try:
+    telgm_updates = telgm_bot.get_updates()
+except:
+    telgm_bot.deleteWebhook() # Colflict Error 시 deleteWebhook 호출
+    telgm_updates = telgm_bot.get_updates()
 telgm_list = telegram_chat_id_add(telgm_updates, telgm_default_list, [])
+
 
 def telgm_message(alert_message):
     global telgm_list
@@ -101,14 +108,12 @@ def check_latest_percent(latest_value, stock_type, alert_on):
     else:
         return latest_before_value[stock_type]
 
-
 # 연결 여부 체크
 objCpCybos = win32com.client.Dispatch('CpUtil.CpCybos')
 bConnect = objCpCybos.IsConnect
 if (bConnect == 0):
-    print("PLUS가 정상적으로 연결되지 않음. ")
+    print("연결되지 않았습니다. Cybos PLUS 실행하시고, 실행 중이라면 종료 후 재실행 해보세요.")
     exit()
-
 
 def current_stock():
     current = []
@@ -117,17 +122,16 @@ def current_stock():
         nowtime = now.strftime('%H%M')
         objStockChart = win32com.client.Dispatch('CpSysDib.StockChart')
         objStockChart.SetInputValue(0, 'U001')  # 종목코드
-        objStockChart.SetInputValue(5, [0, nowtime, 2, 3, 4, 5, 8])  # 요청항목 - 날짜, 시간,시가,고가,저가,종가,거래량
+        objStockChart.SetInputValue(5, [0, nowtime, 2, 3, 4, 5, 8])  # 요청항목 - 날짜, 시간, 시가, 고가, 저가, 종가, 거래량
         objStockChart.SetInputValue(7, 1)  # 분틱차트 주기  #10은 10분봉
         objStockChart.BlockRequest()
         #print("KOSPI : ", objStockChart.GetHeaderValue(7), sep='')
         current.append(float(objStockChart.GetHeaderValue(7)))
 
         objStockChart.SetInputValue(0, 'U201')  # 종목코드
-        objStockChart.SetInputValue(5, [0, nowtime, 2, 3, 4, 5, 8])  # 요청항목 - 날짜, 시간,시가,고가,저가,종가,거래량
-        objStockChart.SetInputValue(7, 1)  # 분틱차트 주기  #10은 10분봉
+        objStockChart.SetInputValue(5, [0, nowtime, 2, 3, 4, 5, 8])  # 요청항목 - 날짜, 시간, 시가, 고가, 저가, 종가, 거래량
+        objStockChart.SetInputValue(7, 1)  # 분틱차트 주기  # 1분봉
         objStockChart.BlockRequest()
-        #print("KOSDAQ : ", objStockChart.GetHeaderValue(7), sep='')
         current.append(float(objStockChart.GetHeaderValue(7)))
     except:
         pass
@@ -141,10 +145,16 @@ current = current_stock()
 
 # 코인 가격 60분 - [0] ~ [59] 까지 현재 시세로 초기화
 history_kospi_default = []
-history_kospi_default.append(current[stock['KOSPI']])
+try:
+    history_kospi_default.append(current[stock['KOSPI']])
+except:
+    history_kospi_default.append(0)
 history_kospi_default *= 60
 history_kosdaq_default = []
-history_kosdaq_default.append(current[stock['KOSDAQ']])
+try:
+    history_kosdaq_default.append(current[stock['KOSDAQ']])
+except:
+    history_kosdaq_default.append(0)
 history_kosdaq_default *= 60
 history = []
 history.append(history_kospi_default)
@@ -156,7 +166,16 @@ def nowtime_check():
     nowtime_start_check = int(now.strftime('%Y%m%d%H%M'))
     return nowtime, nowtime_start_check
 
-# 스케쥴러 함수
+def history_check(history):
+    check_equal = True # 값이 전부 같으면 True를 유지해야 된다.
+    for h in range(len(history)):
+        first_value = history[h][0]
+        for c in range(1, (len(history[h]) - 1), 1):
+            if first_value != history[h][c]:
+                check_equal = False
+    return check_equal
+
+# 스캐쥴러 함수
 def job():
     global latest_before_value
     global counter_min
@@ -167,27 +186,31 @@ def job():
 
     alert_on = [False, False]
 
+    # 장 종료 타임에는 Sleep 호출
     nowtime, nowtime_start_check = nowtime_check()
     #print(nowtime_start_check, nowtime_start, (nowtime_start_check - nowtime_start), sep=' / ')
-    
-    # 장 종료 타임에는 Sleep 호출
+
     if nowtime > 1530 and nowtime <= 2400: # 15시 30분에 KOSPI, KOSDAQ 제공 종료
         print('15:30~24:00 - 슬립진입', nowtime, nowtime_start_check,sep=', ')
         time.sleep(3600)
-    elif nowtime > 0 and nowtime <= 800:
+    elif nowtime > 0 and nowtime <= 755: #9시 부터 데이터 제공되기 때문에 8시되기 직전까지만 1시간 슬립이 되도록 설정
         print('00:00~08:00 - 슬립진입', nowtime, nowtime_start_check, sep=', ')
         time.sleep(3600)
-    elif nowtime_start_check - nowtime_start > 1\
-            and history[0][0] == history[0][30] and history[0][0] == history[0][59]:
+    elif nowtime_start_check - nowtime_start > 60 and history_check(history) == True:
         print('동일한 값이 60분 동안 지속 - 슬립진입', nowtime, nowtime_start_check, sep=', ')
-        #print(history[0][0], history[0][30], history[0][59])
-        #print(history)
         nowtime_start = nowtime_start_check
         time.sleep(3600)
     else:
         # 현재 값을 호출해오는 함수
         current = current_stock()
-
+        try:
+            for c in range(len(stock)):
+                while len(history[c]) <= 59: # history 값의 첫 배열은 반드시 길이 60이 되어야 함
+                    history[c].append(history[c][-1]) # 60이 안될 경우 최근 값으로 append
+                history[c].pop(0)
+                history[c].append(current[c])
+        except:
+            pass
     # 60분, 30분, 15분 별로 값 입력, 변동률 계산
     if current == False:
         pass
@@ -197,6 +220,8 @@ def job():
                 alert_moment[stock[scode]][0][1] = history[stock[scode]][60 - alert_moment[stock[scode]][0][0]]
                 alert_moment[stock[scode]][1][1] = history[stock[scode]][60 - alert_moment[stock[scode]][1][0]]
                 alert_moment[stock[scode]][2][1] = history[stock[scode]][60 - alert_moment[stock[scode]][2][0]]
+
+                # print(alert_moment[0][0][1], alert_moment[0][1][1], alert_moment[0][2][1], sep='/')
 
                 alert_moment[stock[scode]][0][2] = \
                     float(
@@ -209,6 +234,7 @@ def job():
                         (current[stock[scode]] - float(alert_moment[stock[scode]][2][1])) / current[stock[scode]] * 100)
         except:
             pass
+        # print(alert_moment[0][0][2], alert_moment[0][1][2], alert_moment[0][2][2], sep='/')
 
     # KOSPI 변화율 체크후 알람 발생
     for scode in stock_no:
@@ -270,19 +296,22 @@ def job():
 
     now = datetime.datetime.now()
     now_view = ('%04d/%02d/%02d %02d:%02d' % (now.year, now.month, now.day, now.hour, now.minute))
-    myview_message = 'KOSPI : ' + str(current[stock['KOSPI']])\
-                     + ' ' + '%.4f' %float(alert_moment[stock['KOSPI']][0][2])\
-                     + ' ' + '%.4f' %float(alert_moment[stock['KOSPI']][1][2])\
-                     + ' ' + '%.4f' %float(alert_moment[stock['KOSPI']][2][2])\
-                     + ' ' + '%.4f' %float(latest_before_value[stock['KOSPI']])\
-                     + ' ' + str(counter_min[stock['KOSPI']]) + ' '\
-                     + 'KOSDAQ : ' + str(current[stock['KOSDAQ']])\
-                     + ' ' + '%.4f' %float(alert_moment[stock['KOSDAQ']][0][2])\
-                     + ' ' + '%.4f' %float(alert_moment[stock['KOSDAQ']][1][2])\
-                     + ' ' + '%.4f' %float(alert_moment[stock['KOSDAQ']][2][2])\
-                     + ' ' + '%.4f' %float(latest_before_value[stock['KOSDAQ']])\
-                     + ' ' + str(counter_min[stock['KOSDAQ']])
-    print(now_view, myview_message, sep=', ')
+    try:
+        myview_message = 'KOSPI : ' + str(current[stock['KOSPI']]) \
+                         + ' ' + '%.4f' % float(alert_moment[stock['KOSPI']][0][2]) \
+                         + ' ' + '%.4f' % float(alert_moment[stock['KOSPI']][1][2]) \
+                         + ' ' + '%.4f' % float(alert_moment[stock['KOSPI']][2][2]) \
+                         + ' ' + '%.4f' % float(latest_before_value[stock['KOSPI']]) \
+                         + ' ' + str(counter_min[stock['KOSPI']]) + ' ' \
+                         + 'KOSDAQ : ' + str(current[stock['KOSDAQ']]) \
+                         + ' ' + '%.4f' % float(alert_moment[stock['KOSDAQ']][0][2]) \
+                         + ' ' + '%.4f' % float(alert_moment[stock['KOSDAQ']][1][2]) \
+                         + ' ' + '%.4f' % float(alert_moment[stock['KOSDAQ']][2][2]) \
+                         + ' ' + '%.4f' % float(latest_before_value[stock['KOSDAQ']]) \
+                         + ' ' + str(counter_min[stock['KOSDAQ']])
+        print(now_view, myview_message, sep=', ')
+    except:
+        print(now_view, "값을 불러오는데 실패하였습니다", sep=', ')
 schedule.every(1).minutes.do(job)
 
 while True:
