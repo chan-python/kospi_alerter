@@ -5,9 +5,9 @@ import time
 import schedule
 import telegram
 
-percent = 0.5  #default 1%
-rapid_percent = 1 #default 2%
-alert_once_percent = 0.5 # default 1%
+percent = 0.5  #default 0.5%
+rapid_percent = 1 #default 1%
+alert_once_percent = 0.5 # default 0.5%
 counter_min = [0] * 2 # 연속 카운트 방지
 latest_before_value = [0] * 2 # 코인 중 마지막으로 발생한 알람 시점의 퍼센트를 저장하는 변수
 # 0 : KOSPI
@@ -17,7 +17,7 @@ stock_no = ('KOSPI', 'KOSDAQ')
 alert_moment_default = [[60, 0, 0], [30, 0, 0], [15, 0, 0]] #경과시간 (60, 30, 15), 당시금액 혹은 지수, 당시~현재 변동률
 alert_moment = [alert_moment_default] * len(stock)
 
-telgm_default_list = []  # 기본으로 알림 받을 사람의 chat id 기입
+telgm_default_list = []  # 기본으로 추가할 유저의 chat id 번호를 기재
 
 #초기 시작시간 기록
 now = datetime.datetime.now()
@@ -36,7 +36,7 @@ def telegram_chat_id_add(updates, telgm_default_list, telgm_extra):
     telgm_list = list(set(telgm_list))
     return telgm_list
 
-telgm_token = '' # 텔레그램 토큰 기입
+telgm_token = '' # 텔레그램 토큰 삽입
 telgm_bot = telegram.Bot(token=telgm_token)
 try:
     telgm_updates = telgm_bot.get_updates()
@@ -88,7 +88,6 @@ def current_percent(term, stock_type, name, updown, value, alert_on, price_recei
         return counter_min[0]
     elif name == stock_no[1]:
         return counter_min[1]
-
     return counter_min
 
 # 알람이 발생한 이후 일정 퍼센트 이상 추가 변동이 있었는지 체크하는 함수
@@ -112,7 +111,7 @@ def check_latest_percent(latest_value, stock_type, alert_on):
 objCpCybos = win32com.client.Dispatch('CpUtil.CpCybos')
 bConnect = objCpCybos.IsConnect
 if (bConnect == 0):
-    print("연결되지 않았습니다. Cybos PLUS 실행하시고, 실행 중이라면 종료 후 재실행 해보세요.")
+    print("연결되지 않았습니다. Cybos PLUS를 종료 후 재실행 해보세요.")
     exit()
 
 def current_stock():
@@ -122,15 +121,14 @@ def current_stock():
         nowtime = now.strftime('%H%M')
         objStockChart = win32com.client.Dispatch('CpSysDib.StockChart')
         objStockChart.SetInputValue(0, 'U001')  # 종목코드
-        objStockChart.SetInputValue(5, [0, nowtime, 2, 3, 4, 5, 8])  # 요청항목 - 날짜, 시간, 시가, 고가, 저가, 종가, 거래량
+        objStockChart.SetInputValue(5, [0, nowtime, 2, 3, 4, 5, 8])  # 요청항목 - 날짜, 시간,시가,고가,저가,종가,거래량
         objStockChart.SetInputValue(7, 1)  # 분틱차트 주기  #10은 10분봉
         objStockChart.BlockRequest()
-        #print("KOSPI : ", objStockChart.GetHeaderValue(7), sep='')
         current.append(float(objStockChart.GetHeaderValue(7)))
 
         objStockChart.SetInputValue(0, 'U201')  # 종목코드
-        objStockChart.SetInputValue(5, [0, nowtime, 2, 3, 4, 5, 8])  # 요청항목 - 날짜, 시간, 시가, 고가, 저가, 종가, 거래량
-        objStockChart.SetInputValue(7, 1)  # 분틱차트 주기  # 1분봉
+        objStockChart.SetInputValue(5, [0, nowtime, 2, 3, 4, 5, 8])  # 요청항목 - 날짜, 시간,시가,고가,저가,종가,거래량
+        objStockChart.SetInputValue(7, 1)  # 분틱차트 주기  #10은 10분봉
         objStockChart.BlockRequest()
         current.append(float(objStockChart.GetHeaderValue(7)))
     except:
@@ -190,14 +188,15 @@ def job():
     nowtime, nowtime_start_check = nowtime_check()
     #print(nowtime_start_check, nowtime_start, (nowtime_start_check - nowtime_start), sep=' / ')
 
-    if nowtime > 1530 and nowtime <= 2400: # 15시 30분에 KOSPI, KOSDAQ 제공 종료
+    if nowtime > 1530 and nowtime <= 2400: # 임시로 19시 30분으로 변경 cf - 15시 30분에 KOSPI, KOSDAQ 제공 종료
         print('15:30~24:00 - 슬립진입', nowtime, nowtime_start_check,sep=', ')
         time.sleep(3600)
-    elif nowtime > 0 and nowtime <= 755: #9시 부터 데이터 제공되기 때문에 8시되기 직전까지만 1시간 슬립이 되도록 설정
+    elif nowtime > 0 and nowtime <= 800: # 오전 9시부터 개시인데 1시간 슬립 감안하여 오전 8시까지 슬립 체크
         print('00:00~08:00 - 슬립진입', nowtime, nowtime_start_check, sep=', ')
         time.sleep(3600)
     elif nowtime_start_check - nowtime_start > 60 and history_check(history) == True:
         print('동일한 값이 60분 동안 지속 - 슬립진입', nowtime, nowtime_start_check, sep=', ')
+        print('history KOSPI 길이는 ', len(history[0]), sep='')
         nowtime_start = nowtime_start_check
         time.sleep(3600)
     else:
@@ -205,8 +204,8 @@ def job():
         current = current_stock()
         try:
             for c in range(len(stock)):
-                while len(history[c]) <= 59: # history 값의 첫 배열은 반드시 길이 60이 되어야 함
-                    history[c].append(history[c][-1]) # 60이 안될 경우 최근 값으로 append
+                while len(history[c]) <= 59: #history 값의 첫 배열은 60개가 되어야 함
+                    history[c].append(history[c][-1])
                 history[c].pop(0)
                 history[c].append(current[c])
         except:
@@ -234,58 +233,59 @@ def job():
                         (current[stock[scode]] - float(alert_moment[stock[scode]][2][1])) / current[stock[scode]] * 100)
         except:
             pass
-        # print(alert_moment[0][0][2], alert_moment[0][1][2], alert_moment[0][2][2], sep='/')
-
-    # KOSPI 변화율 체크후 알람 발생
-    for scode in stock_no:
-        if alert_moment[stock[scode]][2][2] > rapid_percent and alert_on[stock[scode]] == False:
-            alert_on[stock[scode]] = check_alert_once(stock[scode], alert_moment[stock[scode]][2][2])
-            counter_min[stock[scode]] = current_percent(alert_moment[stock[scode]][2][0], stock[scode], scode, "r+",
-                                                        alert_moment[stock[scode]][2][2], alert_on[stock[scode]],
-                                                        current[stock[scode]])
-            latest_before_value[stock[scode]] = check_latest_percent(alert_moment[stock[scode]][2][2], stock[scode],
-                                                                     alert_on[stock[scode]])
-            alert_on[stock[scode]] = True
-        if alert_moment[stock[scode]][2][2] < (-rapid_percent) and alert_on[stock[scode]] == False:
-            alert_on[stock[scode]] = check_alert_once(0, alert_moment[stock[scode]][2][2])
-            counter_min[stock[scode]] = current_percent(alert_moment[stock[scode]][2][0], stock[scode], scode, "r-",
-                                                        alert_moment[stock[scode]][2][2], alert_on[stock[scode]],
-                                                        current[stock[scode]])
-            latest_before_value[stock[scode]] = check_latest_percent(alert_moment[stock[scode]][2][2], stock[scode],
-                                                                     alert_on[stock[scode]])
-            alert_on[stock[scode]] = True
-        if alert_moment[stock[scode]][1][2] > percent and alert_on[stock[scode]] == False:
-            alert_on[stock[scode]] = check_alert_once(0, alert_moment[stock[scode]][1][2])
-            counter_min[stock[scode]] = current_percent(alert_moment[stock[scode]][1][0], stock[scode], scode, "+",
-                                                        alert_moment[stock[scode]][1][2], alert_on[stock[scode]],
-                                                        current[stock[scode]])
-            latest_before_value[stock[scode]] = check_latest_percent(alert_moment[stock[scode]][1][2], stock[scode],
-                                                                     alert_on[stock[scode]])
-            alert_on[stock[scode]] = True
-        if alert_moment[stock[scode]][1][2] < (-percent) and alert_on[stock[scode]] == False:
-            alert_on[stock[scode]] = check_alert_once(0, alert_moment[stock[scode]][1][2])
-            counter_min[stock[scode]] = current_percent(alert_moment[stock[scode]][1][0], stock[scode], scode, "-",
-                                                        alert_moment[stock[scode]][1][2], alert_on[stock[scode]],
-                                                        current[stock[scode]])
-            latest_before_value[stock[scode]] = check_latest_percent(alert_moment[stock[scode]][1][2], stock[scode],
-                                                                     alert_on[stock[scode]])
-            alert_on[stock[scode]] = True
-        if alert_moment[stock[scode]][0][2] > percent and alert_on[stock[scode]] == False:
-            alert_on[stock[scode]] = check_alert_once(0, alert_moment[stock[scode]][0][2])
-            counter_min[stock[scode]] = current_percent(alert_moment[stock[scode]][0][0], stock[scode], scode, "+",
-                                                        alert_moment[stock[scode]][0][2], alert_on[stock[scode]],
-                                                        current[stock[scode]])
-            latest_before_value[stock[scode]] = check_latest_percent(alert_moment[stock[scode]][0][2], stock[scode],
-                                                                     alert_on[stock[scode]])
-            alert_on[stock[scode]] = True
-        if alert_moment[stock[scode]][0][2] < (-percent) and alert_on[stock[scode]] == False:
-            alert_on[stock[scode]] = check_alert_once(0, alert_moment[stock[scode]][0][2])
-            counter_min[stock[scode]] = current_percent(alert_moment[stock[scode]][0][0], stock[scode], scode, "-",
-                                                        alert_moment[stock[scode]][0][2], alert_on[stock[scode]],
-                                                        current[stock[scode]])
-            latest_before_value[stock[scode]] = check_latest_percent(alert_moment[stock[scode]][0][2], stock[scode],
-                                                                     alert_on[stock[scode]])
-            alert_on[stock[scode]] = True
+    try:
+        # KOSPI 변화율 체크후 알람 발생
+        for scode in stock_no:
+            if alert_moment[stock[scode]][2][2] > rapid_percent and alert_on[stock[scode]] == False:
+                alert_on[stock[scode]] = check_alert_once(stock[scode], alert_moment[stock[scode]][2][2])
+                counter_min[stock[scode]] = current_percent(alert_moment[stock[scode]][2][0], stock[scode], scode, "r+",
+                                                            alert_moment[stock[scode]][2][2], alert_on[stock[scode]],
+                                                            current[stock[scode]])
+                latest_before_value[stock[scode]] = check_latest_percent(alert_moment[stock[scode]][2][2], stock[scode],
+                                                                         alert_on[stock[scode]])
+                alert_on[stock[scode]] = True
+            if alert_moment[stock[scode]][2][2] < (-rapid_percent) and alert_on[stock[scode]] == False:
+                alert_on[stock[scode]] = check_alert_once(0, alert_moment[stock[scode]][2][2])
+                counter_min[stock[scode]] = current_percent(alert_moment[stock[scode]][2][0], stock[scode], scode, "r-",
+                                                            alert_moment[stock[scode]][2][2], alert_on[stock[scode]],
+                                                            current[stock[scode]])
+                latest_before_value[stock[scode]] = check_latest_percent(alert_moment[stock[scode]][2][2], stock[scode],
+                                                                         alert_on[stock[scode]])
+                alert_on[stock[scode]] = True
+            if alert_moment[stock[scode]][1][2] > percent and alert_on[stock[scode]] == False:
+                alert_on[stock[scode]] = check_alert_once(0, alert_moment[stock[scode]][1][2])
+                counter_min[stock[scode]] = current_percent(alert_moment[stock[scode]][1][0], stock[scode], scode, "+",
+                                                            alert_moment[stock[scode]][1][2], alert_on[stock[scode]],
+                                                            current[stock[scode]])
+                latest_before_value[stock[scode]] = check_latest_percent(alert_moment[stock[scode]][1][2], stock[scode],
+                                                                         alert_on[stock[scode]])
+                alert_on[stock[scode]] = True
+            if alert_moment[stock[scode]][1][2] < (-percent) and alert_on[stock[scode]] == False:
+                alert_on[stock[scode]] = check_alert_once(0, alert_moment[stock[scode]][1][2])
+                counter_min[stock[scode]] = current_percent(alert_moment[stock[scode]][1][0], stock[scode], scode, "-",
+                                                            alert_moment[stock[scode]][1][2], alert_on[stock[scode]],
+                                                            current[stock[scode]])
+                latest_before_value[stock[scode]] = check_latest_percent(alert_moment[stock[scode]][1][2], stock[scode],
+                                                                         alert_on[stock[scode]])
+                alert_on[stock[scode]] = True
+            if alert_moment[stock[scode]][0][2] > percent and alert_on[stock[scode]] == False:
+                alert_on[stock[scode]] = check_alert_once(0, alert_moment[stock[scode]][0][2])
+                counter_min[stock[scode]] = current_percent(alert_moment[stock[scode]][0][0], stock[scode], scode, "+",
+                                                            alert_moment[stock[scode]][0][2], alert_on[stock[scode]],
+                                                            current[stock[scode]])
+                latest_before_value[stock[scode]] = check_latest_percent(alert_moment[stock[scode]][0][2], stock[scode],
+                                                                         alert_on[stock[scode]])
+                alert_on[stock[scode]] = True
+            if alert_moment[stock[scode]][0][2] < (-percent) and alert_on[stock[scode]] == False:
+                alert_on[stock[scode]] = check_alert_once(0, alert_moment[stock[scode]][0][2])
+                counter_min[stock[scode]] = current_percent(alert_moment[stock[scode]][0][0], stock[scode], scode, "-",
+                                                            alert_moment[stock[scode]][0][2], alert_on[stock[scode]],
+                                                            current[stock[scode]])
+                latest_before_value[stock[scode]] = check_latest_percent(alert_moment[stock[scode]][0][2], stock[scode],
+                                                                         alert_on[stock[scode]])
+                alert_on[stock[scode]] = True
+    except Exception as e:
+        print(current, e, sep=', ')
 
     # 1분이 지날때마다 카운터를 1분씩 줄이며, 알림 울린 뒤 30분이 지났을 시 마지막 가격을 초기화
     for coin_no in range(0, len(counter_min)):
@@ -310,8 +310,8 @@ def job():
                          + ' ' + '%.4f' % float(latest_before_value[stock['KOSDAQ']]) \
                          + ' ' + str(counter_min[stock['KOSDAQ']])
         print(now_view, myview_message, sep=', ')
-    except:
-        print(now_view, "값을 불러오는데 실패하였습니다", sep=', ')
+    except Exception as e:
+        print(now_view, "값을 불러오는데 실패하였습니다", e, sep=', ')
 schedule.every(1).minutes.do(job)
 
 while True:
