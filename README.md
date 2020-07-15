@@ -1,4 +1,5 @@
 # kospi_alerter
+If KOSPI, KOSDAQ change specific percent over in stock, the Alerter gives alert to Telegram messenger.
 
 How to launch
 1. 고객센터 > 트레이딩 안내 > 다운로드 센터   
