@@ -7,4 +7,4 @@ https://money2.daishin.com/E5/WTS/Customer/GuideTrading/DW_DownloadCenter.aspx?m
 3. Click Cybos Plus Tab and login
 
 * Based on DAISHIN Securities API
-* Cybos API only available for Python 32bit, no support for Python 64bit
+* Cybos API only available for **Python 32bit**, no support for Python 64bit
