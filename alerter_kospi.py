@@ -188,6 +188,16 @@ def job():
     nowtime, nowtime_start_check = nowtime_check()
     #print(nowtime_start_check, nowtime_start, (nowtime_start_check - nowtime_start), sep=' / ')
 
+    # 현재 값을 호출해오는 함수
+    current = current_stock()
+    try:
+        for c in range(len(stock)):
+            while len(history[c]) <= 59:  # history 값의 첫 배열은 60개가 되어야 함
+                history[c].append(history[c][-1])
+            history[c].pop(0)
+            history[c].append(current[c])
+    except:
+        pass
     if nowtime > 1530 and nowtime <= 2400: # 임시로 19시 30분으로 변경 cf - 15시 30분에 KOSPI, KOSDAQ 제공 종료
         print('15:30~24:00 - 슬립진입', nowtime, nowtime_start_check,sep=', ')
         time.sleep(3600)
@@ -197,19 +207,10 @@ def job():
     elif nowtime_start_check - nowtime_start > 60 and history_check(history) == True:
         print('동일한 값이 60분 동안 지속 - 슬립진입', nowtime, nowtime_start_check, sep=', ')
         print('history KOSPI 길이는 ', len(history[0]), sep='')
+        print(history[0][0], history[0][30], history[0][-1])
+        print(history)
         nowtime_start = nowtime_start_check
         time.sleep(3600)
-    else:
-        # 현재 값을 호출해오는 함수
-        current = current_stock()
-        try:
-            for c in range(len(stock)):
-                while len(history[c]) <= 59: #history 값의 첫 배열은 60개가 되어야 함
-                    history[c].append(history[c][-1])
-                history[c].pop(0)
-                history[c].append(current[c])
-        except:
-            pass
     # 60분, 30분, 15분 별로 값 입력, 변동률 계산
     if current == False:
         pass
